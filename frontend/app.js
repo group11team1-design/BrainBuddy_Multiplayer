@@ -88,8 +88,6 @@
   els.name.value=localStorage.getItem("brainbuddy_display_name")||"";
   els.name.addEventListener("change",()=>localStorage.setItem("brainbuddy_display_name",els.name.value.trim()));
   connect();
-}
-
   // Individual quiz game (quiz state is local to this browser; room/chat remain realtime).
   const quizBank = {
     general: [
