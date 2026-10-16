@@ -56,10 +56,22 @@
         <p class="chat-footnote">Be kind to your buddies. Chat is shared with everyone in this room.</p>
       </section>
     </section>
-    <section class="mode-section"><div><span class="eyebrow">WHEN EVERYONE'S HERE</span><h2>Pick your kind of fun <span>♡</span></h2></div><div class="mode-grid">
+    <section class="quiz-section" id="quiz">
+      <div class="quiz-intro"><div><span class="eyebrow">BRAINBUDDY GAME TIME</span><h2>Let's play a quiz <span>✦</span></h2><p>Choose a category, answer questions, and see your score.</p></div><div class="quiz-trophy">🏆</div></div>
+      <div class="quiz-toolbar"><label for="quizCategory">Category</label><select id="quizCategory"><option value="general">General Knowledge</option><option value="science">Science</option><option value="tech">Technology</option><option value="fun">Fun & Friends</option></select><button id="startQuizBtn" class="primary-btn quiz-start">Start quiz ↗</button></div>
+      <div class="quiz-card" id="quizCard">
+        <div class="quiz-progress-row"><span id="quizProgress">READY WHEN YOU ARE</span><span id="quizScore">Score: 0</span></div>
+        <div class="quiz-progress"><span id="quizProgressBar"></span></div>
+        <h3 id="quizQuestion">Pick a category and press Start quiz!</h3>
+        <div id="quizOptions" class="quiz-options"><button class="quiz-option" disabled>Four answer choices will appear here</button></div>
+        <div class="quiz-bottom"><p id="quizFeedback">You can play again any time.</p><button id="nextQuestionBtn" class="secondary-btn" disabled>Next question →</button></div>
+      </div>
+      <p class="quiz-note">Quiz score is saved in this browser. Live room membership and chat are shared through your backend; quiz turns are currently played individually on each device.</p>
+    </section>
+    <section class="mode-section"><div><span class="eyebrow">MORE WAYS TO CONNECT</span><h2>Pick your kind of fun <span>♡</span></h2></div><div class="mode-grid">
       <article class="mode-card pink"><span class="mode-icon">💗</span><h3>Icebreakers</h3><p>Get the conversation flowing.</p></article>
       <article class="mode-card yellow"><span class="mode-icon">🤔</span><h3>Would You Rather</h3><p>Impossible choices, big debates.</p></article>
-      <article class="mode-card blue"><span class="mode-icon">🧠</span><h3>Quick Quiz</h3><p>See who knows the most.</p></article>
+      <article class="mode-card blue"><span class="mode-icon">🧠</span><h3>Quick Quiz</h3><p>Test your knowledge below.</p></article>
       <article class="mode-card lilac"><span class="mode-icon">🌙</span><h3>Deep Talk</h3><p>For the late-night questions.</p></article>
     </div></section>
     <footer>Made for the friends who make life sweeter <span>♡</span></footer>
