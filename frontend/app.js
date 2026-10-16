@@ -56,6 +56,17 @@
     socket.on("chat:history",payload=>{if(payload.code===currentRoom){history=payload.messages||[];renderMessages();}});
     socket.on("chat:new",payload=>{if(payload.code===currentRoom){history.push(payload.message);history=history.slice(-200);renderMessages();}});
     socket.on("room:error",payload=>notice(payload.message||"Room error."));
+    socket.on("quiz:started",payload=>{
+      if(!currentRoom || payload.code!==currentRoom)return;
+      quizState.items=payload.items||[];quizState.index=0;quizState.score=0;quizState.answered=false;
+      if(payload.category)qel("quizCategory").value=payload.category;
+      quizRender();
+      notice(`${payload.started_by || "A buddy"} started a room quiz! Everyone has the same questions.`,true);
+    });
+    socket.on("quiz:next",payload=>{
+      if(!currentRoom || payload.code!==currentRoom || !quizState.items.length)return;
+      quizState.index=payload.index;quizState.answered=false;quizRender();
+    });
   }
   function handleRoomResponse(response) {
     if(!response || !response.ok){notice(response?.message||"Couldn't join this room.");return;}
@@ -88,7 +99,8 @@
   els.name.value=localStorage.getItem("brainbuddy_display_name")||"";
   els.name.addEventListener("change",()=>localStorage.setItem("brainbuddy_display_name",els.name.value.trim()));
   connect();
-  // Individual quiz game (quiz state is local to this browser; room/chat remain realtime).
+
+  // Quiz questions are broadcast to everyone in the active room.
   const quizBank = {
     general: [
       {q:"Which is the largest ocean on Earth?",o:["Atlantic Ocean","Indian Ocean","Pacific Ocean","Arctic Ocean"],a:2,why:"The Pacific Ocean is the largest ocean by area."},
@@ -158,12 +170,27 @@
   }
   qel("startQuizBtn").addEventListener("click",()=>{
     const category=qel("quizCategory").value;
-    quizState.items=shuffle(quizBank[category]).slice(0,6);quizState.index=0;quizState.score=0;quizState.answered=false;
-    quizRender();
+    const items=shuffle(quizBank[category]).slice(0,6);
+    if(currentRoom && socket?.connected){
+      socket.emit("quiz:start",{code:currentRoom,client_id:clientId,category,items},response=>{
+        if(!response?.ok)notice(response?.message||"Couldn't start the room quiz.");
+      });
+    } else {
+      quizState.items=items;quizState.index=0;quizState.score=0;quizState.answered=false;quizRender();
+    }
   });
   qel("nextQuestionBtn").addEventListener("click",()=>{
-    if(quizState.index>=quizState.items.length){quizState.index=0;quizState.score=0;quizState.items=shuffle(quizBank[qel("quizCategory").value]).slice(0,6);quizRender();return;}
-    if(!quizState.answered)return;quizState.index++;quizRender();
+    if(quizState.index>=quizState.items.length){
+      const category=qel("quizCategory").value;
+      const items=shuffle(quizBank[category]).slice(0,6);
+      if(currentRoom && socket?.connected){socket.emit("quiz:start",{code:currentRoom,client_id:clientId,category,items},r=>{if(!r?.ok)notice(r?.message||"Couldn't restart the room quiz.");});}
+      else {quizState.index=0;quizState.score=0;quizState.items=items;quizRender();}
+      return;
+    }
+    if(!quizState.answered)return;
+    const nextIndex=quizState.index+1;
+    if(currentRoom && socket?.connected){socket.emit("quiz:next",{code:currentRoom,client_id:clientId,index:nextIndex},r=>{if(!r?.ok)notice(r?.message||"Couldn't advance the room quiz.");});}
+    else {quizState.index=nextIndex;quizRender();}
   });
 
 })();
