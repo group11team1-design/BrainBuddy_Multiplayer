@@ -35,6 +35,7 @@ socketio = SocketIO(app, cors_allowed_origins=allowed_origins(), async_mode="thr
 # Runtime presence is mapped to room code -> sid -> member ID. Keep one Render instance
 # unless a shared Socket.IO message queue is configured.
 presence = {}
+quiz_sessions = {}  # room code -> shared question set and current index
 
 class Room(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -190,7 +191,61 @@ def join_existing_room(data):
     presence.setdefault(room.code, {})[request.sid] = client_id
     response = room_response(room, member)
     broadcast_members(room.code)
+    active_quiz = quiz_sessions.get(room.code)
+    if active_quiz:
+        socketio.emit("quiz:started", {**active_quiz, "code": room.code, "started_by": "Your room"}, to=request.sid)
+        if active_quiz.get("index", 0):
+            socketio.emit("quiz:next", {"code": room.code, "index": active_quiz["index"]}, to=request.sid)
     return response
+
+@socketio.on("quiz:start")
+def start_room_quiz(data):
+    data = data or {}
+    code = re.sub(r"[^A-Z0-9]", "", str(data.get("code") or "").upper())[:8]
+    client_id = clean_client_id(data.get("client_id"))
+    category = str(data.get("category") or "general")[:20]
+    items = data.get("items")
+    if not code or request.sid not in presence.get(code, {}) or presence[code].get(request.sid) != client_id:
+        return {"ok": False, "message": "Join the room before starting a shared quiz."}
+    if not isinstance(items, list) or not 1 <= len(items) <= 10:
+        return {"ok": False, "message": "The quiz question set is invalid."}
+    # Only accept the fields required to render questions; keep payload bounded.
+    clean_items = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("o"), list) or len(item["o"]) != 4:
+            return {"ok": False, "message": "A quiz question is invalid."}
+        try:
+            answer = int(item.get("a"))
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "A quiz answer is invalid."}
+        if answer not in range(4):
+            return {"ok": False, "message": "A quiz answer is invalid."}
+        clean_items.append({"q": str(item.get("q") or "")[:300], "o": [str(x)[:160] for x in item["o"]], "a": answer, "why": str(item.get("why") or "")[:500]})
+    member = Member.query.filter_by(room_id=room_by_code(code).id, client_id=client_id).first()
+    session = {"category": category, "items": clean_items, "index": 0, "started_by": member.name if member else "A buddy"}
+    quiz_sessions[code] = session
+    socketio.emit("quiz:started", {**session, "code": code}, to=code)
+    return {"ok": True}
+
+@socketio.on("quiz:next")
+def advance_room_quiz(data):
+    data = data or {}
+    code = re.sub(r"[^A-Z0-9]", "", str(data.get("code") or "").upper())[:8]
+    client_id = clean_client_id(data.get("client_id"))
+    if not code or request.sid not in presence.get(code, {}) or presence[code].get(request.sid) != client_id:
+        return {"ok": False, "message": "Join the room before advancing the quiz."}
+    session = quiz_sessions.get(code)
+    if not session:
+        return {"ok": False, "message": "Start a room quiz first."}
+    try:
+        index = int(data.get("index"))
+    except (TypeError, ValueError):
+        return {"ok": False, "message": "The quiz position is invalid."}
+    if index < 0 or index > len(session["items"]):
+        return {"ok": False, "message": "The quiz position is invalid."}
+    session["index"] = index
+    socketio.emit("quiz:next", {"code": code, "index": index}, to=code)
+    return {"ok": True}
 
 @socketio.on("chat:send")
 def send_chat(data):
