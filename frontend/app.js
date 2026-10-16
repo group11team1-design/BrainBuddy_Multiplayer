@@ -88,4 +88,84 @@
   els.name.value=localStorage.getItem("brainbuddy_display_name")||"";
   els.name.addEventListener("change",()=>localStorage.setItem("brainbuddy_display_name",els.name.value.trim()));
   connect();
+}
+
+  // Individual quiz game (quiz state is local to this browser; room/chat remain realtime).
+  const quizBank = {
+    general: [
+      {q:"Which is the largest ocean on Earth?",o:["Atlantic Ocean","Indian Ocean","Pacific Ocean","Arctic Ocean"],a:2,why:"The Pacific Ocean is the largest ocean by area."},
+      {q:"How many sides does a hexagon have?",o:["Five","Six","Seven","Eight"],a:1,why:"A hexagon has six sides."},
+      {q:"Which country is famous for the city of Kyoto?",o:["Japan","Thailand","Vietnam","Nepal"],a:0,why:"Kyoto is a historic city in Japan."},
+      {q:"Which instrument measures temperature?",o:["Barometer","Thermometer","Altimeter","Compass"],a:1,why:"A thermometer measures temperature."},
+      {q:"How many minutes are in two hours?",o:["90","100","120","180"],a:2,why:"Two hours contain 2 × 60 = 120 minutes."},
+      {q:"Which one is a primary colour of light?",o:["Green","Brown","Pink","Black"],a:0,why:"In the RGB model of light, red, green and blue are primary colours."}
+    ],
+    science: [
+      {q:"Which gas do plants absorb during photosynthesis?",o:["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"],a:1,why:"Plants use carbon dioxide and water to produce sugars during photosynthesis."},
+      {q:"What is the chemical symbol for gold?",o:["Ag","Gd","Au","Go"],a:2,why:"Gold's chemical symbol is Au, from the Latin aurum."},
+      {q:"Which part of a cell contains most of its genetic material?",o:["Nucleus","Cell membrane","Cytoplasm","Ribosome"],a:0,why:"In eukaryotic cells, most DNA is stored in the nucleus."},
+      {q:"Which force pulls objects toward Earth?",o:["Friction","Magnetism","Gravity","Buoyancy"],a:2,why:"Earth's gravitational attraction pulls objects toward its centre."},
+      {q:"At standard atmospheric pressure, water boils at what temperature?",o:["0°C","50°C","100°C","150°C"],a:2,why:"At standard atmospheric pressure, water boils at 100°C."},
+      {q:"Which organ pumps blood around the human body?",o:["Liver","Heart","Lung","Kidney"],a:1,why:"The heart contracts to circulate blood through the body."}
+    ],
+    tech: [
+      {q:"What does CPU stand for?",o:["Central Processing Unit","Computer Power Utility","Core Program Upload","Central Program User"],a:0,why:"CPU stands for Central Processing Unit."},
+      {q:"Which language is commonly used to style web pages?",o:["HTML","CSS","SQL","Python"],a:1,why:"CSS controls the presentation and styling of web pages."},
+      {q:"What does URL identify?",o:["A web resource address","A computer's battery","A file's size","A Wi-Fi password"],a:0,why:"A URL identifies the location of a resource on a network."},
+      {q:"Which data structure follows FIFO order?",o:["Stack","Queue","Tree","Graph"],a:1,why:"A queue processes items in first-in, first-out order."},
+      {q:"Which of these is a relational database system?",o:["PostgreSQL","CSS","JPEG","Bluetooth"],a:0,why:"PostgreSQL is an open-source relational database management system."},
+      {q:"What does HTTPS add to HTTP?",o:["Encrypted transport using TLS","More screen resolution","A larger keyboard","Offline storage only"],a:0,why:"HTTPS protects HTTP communication with TLS encryption and authentication."}
+    ],
+    fun: [
+      {q:"Which of these is best for getting to know a new friend?",o:["Ask an open-ended question","Only say yes or no","Change the subject every second","Ignore their answer"],a:0,why:"Open-ended questions invite people to share more about themselves."},
+      {q:"If your team gets a question wrong in a friendly quiz, what is a good response?",o:["Make fun of them","Blame one person","Learn the answer and keep playing","Quit immediately"],a:2,why:"A friendly game is more fun when everyone can learn and keep participating."},
+      {q:"Which message is clearest when inviting someone to a room?",o:["Join sometime maybe","Use code ABC123 to join our room","You know what to do","Never mind"],a:1,why:"A specific instruction and the actual room code make joining clear."},
+      {q:"Which is a good group-chat habit?",o:["Share private details without asking","Respect people's boundaries","Spam the same message","Pretend to be someone else"],a:1,why:"Respecting boundaries helps keep a group chat safe and welcoming."},
+      {q:"What helps a group quiz feel fair?",o:["Change rules mid-round","Give everyone the same rules","Hide the questions from one player","Count only one person's answers"],a:1,why:"Consistent rules give all players a fair chance."},
+      {q:"A friend gives a different opinion. What is a constructive response?",o:["Listen and ask why","Insult them","Stop them from speaking","Assume they are lying"],a:0,why:"Listening and asking respectfully helps people understand different perspectives."}
+    ]
+  };
+  const quizState = {items:[],index:0,score:0,answered:false};
+  const qel = id => document.getElementById(id);
+  function shuffle(items){const a=items.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+  function quizRender() {
+    const progress=qel("quizProgress"), score=qel("quizScore"), bar=qel("quizProgressBar"), question=qel("quizQuestion"), options=qel("quizOptions"), feedback=qel("quizFeedback"), next=qel("nextQuestionBtn");
+    score.textContent=`Score: ${quizState.score}`;
+    bar.style.width=`${quizState.items.length ? (quizState.index/quizState.items.length)*100 : 0}%`;
+    if(quizState.index>=quizState.items.length){
+      progress.textContent="QUIZ COMPLETE";
+      question.textContent=`You scored ${quizState.score} out of ${quizState.items.length}!`;
+      options.innerHTML=`<div class="quiz-result">✨ ${quizState.score===quizState.items.length?"Perfect score! Amazing work!":quizState.score>=Math.ceil(quizState.items.length*.6)?"Nice job! Play again to beat your score.":"Good try! Give it another round."}</div>`;
+      feedback.textContent="Choose a category and start again whenever you're ready.";
+      next.textContent="Play again ↻";next.disabled=false;bar.style.width="100%";return;
+    }
+    const item=quizState.items[quizState.index];
+    progress.textContent=`QUESTION ${quizState.index+1} OF ${quizState.items.length}`;
+    question.textContent=item.q;
+    options.innerHTML=item.o.map((label,i)=>`<button class="quiz-option" data-answer="${i}">${String.fromCharCode(65+i)}. ${safe(label)}</button>`).join("");
+    options.querySelectorAll("button").forEach(btn=>btn.addEventListener("click",()=>quizAnswer(Number(btn.dataset.answer))));
+    feedback.textContent="Choose the answer you think is right.";
+    next.textContent=quizState.index===quizState.items.length-1?"See results →":"Next question →";next.disabled=true;
+    quizState.answered=false;
+  }
+  function quizAnswer(selected) {
+    if(quizState.answered)return;quizState.answered=true;
+    const item=quizState.items[quizState.index];const buttons=qel("quizOptions").querySelectorAll("button");
+    buttons.forEach((b,i)=>{b.disabled=true;if(i===item.a)b.classList.add("correct");else if(i===selected)b.classList.add("wrong");});
+    if(selected===item.a){quizState.score++;qel("quizFeedback").textContent=`That's right! ${item.why}`;}
+    else qel("quizFeedback").textContent=`Not quite. ${item.why}`;
+    qel("quizScore").textContent=`Score: ${quizState.score}`;
+    qel("quizProgressBar").style.width=`${((quizState.index+1)/quizState.items.length)*100}%`;
+    qel("nextQuestionBtn").disabled=false;
+  }
+  qel("startQuizBtn").addEventListener("click",()=>{
+    const category=qel("quizCategory").value;
+    quizState.items=shuffle(quizBank[category]).slice(0,6);quizState.index=0;quizState.score=0;quizState.answered=false;
+    quizRender();
+  });
+  qel("nextQuestionBtn").addEventListener("click",()=>{
+    if(quizState.index>=quizState.items.length){quizState.index=0;quizState.score=0;quizState.items=shuffle(quizBank[qel("quizCategory").value]).slice(0,6);quizRender();return;}
+    if(!quizState.answered)return;quizState.index++;quizRender();
+  });
+
 })();
